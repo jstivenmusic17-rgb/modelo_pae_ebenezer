@@ -5,6 +5,7 @@ import co.edu.iem.pae.infrastructure.entry_points.api_rest.dto.ApiErrorResponse;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -57,11 +58,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> manejarValidacion(MethodArgumentNotValidException ex) {
         List<String> detalles = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .map(FieldError::getDefaultMessage)
                 .toList();
 
+        // El mensaje principal muestra el primer detalle (el error mas relevante
+        // para el usuario), y "detalles" trae la lista completa por si hay mas
+        // de un campo invalido a la vez.
+        String mensajePrincipal = detalles.isEmpty() ? "Datos de entrada invalidos" : detalles.get(0);
+
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiErrorResponse.de(HttpStatus.BAD_REQUEST.value(), "Datos de entrada invalidos", detalles));
+                .body(ApiErrorResponse.de(HttpStatus.BAD_REQUEST.value(), mensajePrincipal, detalles));
     }
 
     @ExceptionHandler(Exception.class)

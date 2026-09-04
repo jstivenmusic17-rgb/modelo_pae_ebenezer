@@ -21,6 +21,7 @@ export class ApiError extends Error {
 interface ApiErrorBody {
   mensaje?: string;
   message?: string;
+  detalles?: string[];
 }
 
 // ----------------------------------------------------------------------------
@@ -231,7 +232,10 @@ function resolveResponseBody<T>(response: Response): Promise<T> {
   return parseJsonBody(response).then(function toTypedBody(body: unknown): T {
     if (!response.ok) {
       const errorBody = body as ApiErrorBody | null;
-      const message = errorBody?.mensaje ?? errorBody?.message ?? `Error ${response.status} al consultar el servidor.`;
+      const message =
+        errorBody?.detalles && errorBody.detalles.length > 0
+          ? errorBody.detalles.join(" — ")
+          : (errorBody?.mensaje ?? errorBody?.message ?? `Error ${response.status} al consultar el servidor.`);
       throw new ApiError(response.status, message);
     }
     return body as T;

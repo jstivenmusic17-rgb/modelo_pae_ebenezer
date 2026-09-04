@@ -7,8 +7,8 @@ import jakarta.validation.constraints.Positive;
 
 public record CrearPersonalCocinaRequest(
 
-        @NotBlank(message = "nombreCompleto es obligatorio")
-        @Pattern(regexp = "[\\p{L} ]+", message = "nombreCompleto debe contener solo letras y espacios")
+        @NotBlank(message = "El nombre completo es obligatorio")
+        @Pattern(regexp = "[\\p{L} ]+", message = "Nombre invalido: solo se permiten letras y espacios")
         String nombreCompleto,
 
         @Positive(message = "racionesPorHoraCapacidad debe ser mayor a 0")

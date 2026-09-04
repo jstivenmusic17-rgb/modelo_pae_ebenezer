@@ -6,12 +6,12 @@ import jakarta.validation.constraints.Pattern;
 
 public record CrearEstudianteRequest(
 
-        @NotBlank(message = "documentoIdentidad es obligatorio")
-        @Pattern(regexp = "\\d{6,15}", message = "documentoIdentidad debe contener solo numeros (6 a 15 digitos)")
+        @NotBlank(message = "El numero de documento es obligatorio")
+        @Pattern(regexp = "\\d{6,15}", message = "Numero de documento invalido: solo se permiten numeros (entre 6 y 15 digitos)")
         String documentoIdentidad,
 
-        @NotBlank(message = "nombreCompleto es obligatorio")
-        @Pattern(regexp = "[\\p{L} ]+", message = "nombreCompleto debe contener solo letras y espacios")
+        @NotBlank(message = "El nombre completo es obligatorio")
+        @Pattern(regexp = "[\\p{L} ]+", message = "Nombre invalido: solo se permiten letras y espacios")
         String nombreCompleto,
 
         @NotNull(message = "idCurso es obligatorio")
