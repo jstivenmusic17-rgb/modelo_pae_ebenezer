@@ -1,0 +1,10 @@
+{
+  "description": "Streamline school meal planning and logistics with an intuitive dashboard that tracks KPIs, manages inventory, and analyzes data for efficient resource allocation.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
