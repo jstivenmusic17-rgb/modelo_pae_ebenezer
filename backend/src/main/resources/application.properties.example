@@ -1,0 +1,21 @@
+# Copia este archivo como "application.properties" (en la misma carpeta) y
+# ajusta los valores a tu entorno local. application.properties esta en
+# .gitignore a proposito para no subir credenciales reales al repositorio.
+
+# Puerto de ejecucion
+server.port=8082
+
+# Conexion a PostgreSQL
+spring.datasource.url=jdbc:postgresql://localhost:5432/pae_db?currentSchema=pae
+spring.datasource.username=postgres
+spring.datasource.password=TU_CONTRASENA_AQUI
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Configuracion Hibernate / JPA
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.properties.hibernate.default_schema=pae
+
+# Permite que Hibernate cree el esquema "pae" dentro de la base "pae_db" si no existe.
+spring.jpa.properties.hibernate.hbm2ddl.create_namespaces=true
