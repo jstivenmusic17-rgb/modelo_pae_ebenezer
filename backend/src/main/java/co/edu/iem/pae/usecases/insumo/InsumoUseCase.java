@@ -11,8 +11,11 @@ import co.edu.iem.pae.domain.model.PlanRacion;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 public class InsumoUseCase {
+
+    private static final Set<String> UNIDADES_VALIDAS = Set.of("kg", "g", "unidad", "litro");
 
     private final InsumoGateway insumoGateway;
     private final PlanRacionGateway planRacionGateway;
@@ -37,7 +40,8 @@ public class InsumoUseCase {
         if (existeNombreDuplicado(nombreLimpio, null)) {
             throw new IllegalArgumentException("Ya existe un insumo llamado '" + nombreLimpio + "'");
         }
-        Insumo insumo = new Insumo(null, nombreLimpio, unidadMedida, gramosPorRacion,
+        String unidadNormalizada = validarUnidadMedida(unidadMedida);
+        Insumo insumo = new Insumo(null, nombreLimpio, unidadNormalizada, gramosPorRacion,
                 stockInicialConfigurado, stockReserva, diasEntregaProveedor);
         return insumoGateway.guardar(insumo);
     }
@@ -52,18 +56,18 @@ public class InsumoUseCase {
         if (existeNombreDuplicado(nombreLimpio, idInsumo)) {
             throw new IllegalArgumentException("Ya existe un insumo llamado '" + nombreLimpio + "'");
         }
-        Insumo insumo = new Insumo(idInsumo, nombreLimpio, unidadMedida, gramosPorRacion,
+        String unidadNormalizada = validarUnidadMedida(unidadMedida);
+        Insumo insumo = new Insumo(idInsumo, nombreLimpio, unidadNormalizada, gramosPorRacion,
                 stockInicialConfigurado, stockReserva, diasEntregaProveedor);
         return insumoGateway.actualizar(insumo);
     }
 
-    private boolean existeNombreDuplicado(String nombre, Long idAExcluir) {
-        return insumoGateway.listarTodos().stream()
-                .anyMatch(i -> !i.getIdInsumo().equals(idAExcluir) && i.getNombreInsumo().equalsIgnoreCase(nombre));
-    }
-
     public void eliminarInsumo(Long idInsumo) {
         consultarInsumo(idInsumo);
+        if (!movimientoInsumoGateway.listarPorInsumo(idInsumo).isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No se puede eliminar el insumo con id " + idInsumo + " porque tiene movimientos de inventario registrados");
+        }
         insumoGateway.eliminar(idInsumo);
     }
 
@@ -99,5 +103,21 @@ public class InsumoUseCase {
         }
 
         return CalculadorIndicadores.puntoReordenKg(consumoDiarioPromedio, insumo.getDiasEntregaProveedor(), insumo.getStockReserva());
+    }
+
+    private boolean existeNombreDuplicado(String nombre, Long idAExcluir) {
+        return insumoGateway.listarTodos().stream()
+                .anyMatch(i -> !i.getIdInsumo().equals(idAExcluir) && i.getNombreInsumo().equalsIgnoreCase(nombre));
+    }
+
+    private String validarUnidadMedida(String unidadMedida) {
+        if (unidadMedida == null || unidadMedida.isBlank()) {
+            throw new IllegalArgumentException("La unidad de medida no puede estar vacia");
+        }
+        String unidadNormalizada = unidadMedida.trim().toLowerCase();
+        if (!UNIDADES_VALIDAS.contains(unidadNormalizada)) {
+            throw new IllegalArgumentException("unidadMedida debe ser una de: " + UNIDADES_VALIDAS);
+        }
+        return unidadNormalizada;
     }
 }

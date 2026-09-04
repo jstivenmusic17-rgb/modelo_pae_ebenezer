@@ -27,6 +27,13 @@ public class EntregaRacionUseCase {
             throw new IllegalArgumentException("Ya existe una entrega registrada para el plan con id " + idPlan);
         }
 
+        int limiteRazonable = plan.getRacionesPlanificadas() * 3;
+        if (racionesServidas > limiteRazonable) {
+            throw new IllegalArgumentException(
+                    "Las raciones servidas (" + racionesServidas + ") superan un limite razonable "
+                            + "frente a lo planificado (" + plan.getRacionesPlanificadas() + "). Revisa el dato.");
+        }
+
         EntregaRacion entrega = EntregaRacion.calcularDesdeServidas(null, plan, racionesServidas);
         return entregaRacionGateway.guardar(entrega);
     }

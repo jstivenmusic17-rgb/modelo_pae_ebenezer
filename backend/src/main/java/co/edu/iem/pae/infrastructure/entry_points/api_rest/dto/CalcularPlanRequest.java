@@ -16,7 +16,7 @@ public record CalcularPlanRequest(
         LocalDate fecha,
 
         @NotNull(message = "tasaAsistenciaEstimada es obligatoria")
-        @DecimalMin(value = "0.01", message = "tasaAsistenciaEstimada debe ser mayor a 0")
+        @DecimalMin(value = "0.5", message = "tasaAsistenciaEstimada parece muy baja, revisa el valor (minimo 0.5 = 50%)")
         @DecimalMax(value = "1.0", message = "tasaAsistenciaEstimada debe ser como maximo 1.0 (100%)")
         Double tasaAsistenciaEstimada,
 

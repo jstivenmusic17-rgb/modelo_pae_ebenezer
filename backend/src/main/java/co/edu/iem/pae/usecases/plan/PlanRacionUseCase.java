@@ -33,6 +33,10 @@ public class PlanRacionUseCase {
                                             Double coeficienteVariacion,
                                             Double costoProduccionUnitario,
                                             Double margenSeguridad) {
+        if (fecha.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("La fecha del plan no puede ser anterior a hoy");
+        }
+
         Curso curso = cursoGateway.buscarPorId(idCurso)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe el curso con id " + idCurso));
 
