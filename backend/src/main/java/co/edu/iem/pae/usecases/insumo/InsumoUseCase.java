@@ -33,7 +33,11 @@ public class InsumoUseCase {
         if (gramosPorRacion <= 0) {
             throw new IllegalArgumentException("Los gramos por racion deben ser mayores a 0");
         }
-        Insumo insumo = new Insumo(null, nombreInsumo.trim(), unidadMedida, gramosPorRacion,
+        String nombreLimpio = nombreInsumo.trim();
+        if (existeNombreDuplicado(nombreLimpio, null)) {
+            throw new IllegalArgumentException("Ya existe un insumo llamado '" + nombreLimpio + "'");
+        }
+        Insumo insumo = new Insumo(null, nombreLimpio, unidadMedida, gramosPorRacion,
                 stockInicialConfigurado, stockReserva, diasEntregaProveedor);
         return insumoGateway.guardar(insumo);
     }
@@ -44,9 +48,18 @@ public class InsumoUseCase {
         if (nombreInsumo == null || nombreInsumo.isBlank()) {
             throw new IllegalArgumentException("El nombre del insumo no puede estar vacio");
         }
-        Insumo insumo = new Insumo(idInsumo, nombreInsumo.trim(), unidadMedida, gramosPorRacion,
+        String nombreLimpio = nombreInsumo.trim();
+        if (existeNombreDuplicado(nombreLimpio, idInsumo)) {
+            throw new IllegalArgumentException("Ya existe un insumo llamado '" + nombreLimpio + "'");
+        }
+        Insumo insumo = new Insumo(idInsumo, nombreLimpio, unidadMedida, gramosPorRacion,
                 stockInicialConfigurado, stockReserva, diasEntregaProveedor);
         return insumoGateway.actualizar(insumo);
+    }
+
+    private boolean existeNombreDuplicado(String nombre, Long idAExcluir) {
+        return insumoGateway.listarTodos().stream()
+                .anyMatch(i -> !i.getIdInsumo().equals(idAExcluir) && i.getNombreInsumo().equalsIgnoreCase(nombre));
     }
 
     public void eliminarInsumo(Long idInsumo) {

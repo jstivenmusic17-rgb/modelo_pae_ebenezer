@@ -20,7 +20,11 @@ public class JornadaUseCase {
         if (nombreJornada == null || nombreJornada.isBlank()) {
             throw new IllegalArgumentException("El nombre de la jornada no puede estar vacio");
         }
-        Jornada jornada = new Jornada(null, nombreJornada.trim());
+        String nombreLimpio = nombreJornada.trim();
+        if (existeNombreDuplicado(nombreLimpio, null)) {
+            throw new IllegalArgumentException("Ya existe una jornada llamada '" + nombreLimpio + "'");
+        }
+        Jornada jornada = new Jornada(null, nombreLimpio);
         return jornadaGateway.guardar(jornada);
     }
 
@@ -29,8 +33,17 @@ public class JornadaUseCase {
         if (nombreJornada == null || nombreJornada.isBlank()) {
             throw new IllegalArgumentException("El nombre de la jornada no puede estar vacio");
         }
-        Jornada jornada = new Jornada(idJornada, nombreJornada.trim());
+        String nombreLimpio = nombreJornada.trim();
+        if (existeNombreDuplicado(nombreLimpio, idJornada)) {
+            throw new IllegalArgumentException("Ya existe una jornada llamada '" + nombreLimpio + "'");
+        }
+        Jornada jornada = new Jornada(idJornada, nombreLimpio);
         return jornadaGateway.actualizar(jornada);
+    }
+
+    private boolean existeNombreDuplicado(String nombre, Long idAExcluir) {
+        return jornadaGateway.listarTodas().stream()
+                .anyMatch(j -> !j.getIdJornada().equals(idAExcluir) && j.getNombreJornada().equalsIgnoreCase(nombre));
     }
 
     public void eliminarJornada(Long idJornada) {

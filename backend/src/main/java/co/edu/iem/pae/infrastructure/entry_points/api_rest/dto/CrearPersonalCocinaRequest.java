@@ -2,11 +2,13 @@ package co.edu.iem.pae.infrastructure.entry_points.api_rest.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 
 public record CrearPersonalCocinaRequest(
 
         @NotBlank(message = "nombreCompleto es obligatorio")
+        @Pattern(regexp = "[\\p{L} ]+", message = "nombreCompleto debe contener solo letras y espacios")
         String nombreCompleto,
 
         @Positive(message = "racionesPorHoraCapacidad debe ser mayor a 0")

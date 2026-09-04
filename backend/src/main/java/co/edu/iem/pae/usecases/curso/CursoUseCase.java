@@ -30,7 +30,12 @@ public class CursoUseCase {
         jornadaGateway.buscarPorId(idJornada)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe la jornada con id " + idJornada));
 
-        Curso curso = new Curso(null, nombreCurso.trim(), idJornada);
+        String nombreLimpio = nombreCurso.trim();
+        if (existeNombreDuplicadoEnJornada(nombreLimpio, idJornada, null)) {
+            throw new IllegalArgumentException("Ya existe un curso llamado '" + nombreLimpio + "' en esta jornada");
+        }
+
+        Curso curso = new Curso(null, nombreLimpio, idJornada);
         return cursoGateway.guardar(curso);
     }
 
@@ -42,8 +47,18 @@ public class CursoUseCase {
         jornadaGateway.buscarPorId(idJornada)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe la jornada con id " + idJornada));
 
-        Curso curso = new Curso(idCurso, nombreCurso.trim(), idJornada);
+        String nombreLimpio = nombreCurso.trim();
+        if (existeNombreDuplicadoEnJornada(nombreLimpio, idJornada, idCurso)) {
+            throw new IllegalArgumentException("Ya existe un curso llamado '" + nombreLimpio + "' en esta jornada");
+        }
+
+        Curso curso = new Curso(idCurso, nombreLimpio, idJornada);
         return cursoGateway.actualizar(curso);
+    }
+
+    private boolean existeNombreDuplicadoEnJornada(String nombre, Long idJornada, Long idAExcluir) {
+        return cursoGateway.listarPorJornada(idJornada).stream()
+                .anyMatch(c -> !c.getIdCurso().equals(idAExcluir) && c.getNombreCurso().equalsIgnoreCase(nombre));
     }
 
     public void eliminarCurso(Long idCurso) {

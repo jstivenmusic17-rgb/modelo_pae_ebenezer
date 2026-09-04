@@ -26,7 +26,13 @@ public class CocinaUseCase {
         if (horasDuracion <= 0) {
             throw new IllegalArgumentException("Las horas del turno deben ser mayores a 0");
         }
-        return turnoGateway.guardar(new Turno(null, nombreTurno.trim(), horasDuracion));
+        String nombreLimpio = nombreTurno.trim();
+        boolean yaExiste = turnoGateway.listarTodos().stream()
+                .anyMatch(t -> t.getNombreTurno().equalsIgnoreCase(nombreLimpio));
+        if (yaExiste) {
+            throw new IllegalArgumentException("Ya existe un turno llamado '" + nombreLimpio + "'");
+        }
+        return turnoGateway.guardar(new Turno(null, nombreLimpio, horasDuracion));
     }
 
     public Turno consultarTurno(Long idTurno) {
