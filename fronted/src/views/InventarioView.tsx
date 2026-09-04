@@ -549,15 +549,21 @@ export default function InventarioView(): JSX.Element {
             </FormField>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Unidad de medida">
-                <input
+                <select
                   name="unidadMedida"
                   required
-                  placeholder="kg, L..."
+                  defaultValue=""
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
                   onFocus={focusInput}
                   onBlur={blurInput}
-                />
+                >
+                  <option value="" disabled>Selecciona...</option>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="unidad">unidad</option>
+                  <option value="litro">litro</option>
+                </select>
               </FormField>
               <FormField label="Gramos por ración">
                 <input
@@ -689,7 +695,7 @@ export default function InventarioView(): JSX.Element {
             </FormField>
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Unidad de medida">
-                <input
+                <select
                   name="unidadMedida"
                   required
                   defaultValue={insumoParaEditar.unidadMedida}
@@ -697,7 +703,12 @@ export default function InventarioView(): JSX.Element {
                   style={INPUT_STYLE}
                   onFocus={focusInput}
                   onBlur={blurInput}
-                />
+                >
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="unidad">unidad</option>
+                  <option value="litro">litro</option>
+                </select>
               </FormField>
               <FormField label="Gramos por ración">
                 <input
