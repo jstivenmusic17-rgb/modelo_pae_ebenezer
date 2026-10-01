@@ -7,6 +7,7 @@ import co.edu.iem.pae.infrastructure.entry_points.api_rest.dto.PlanRacionRespons
 import co.edu.iem.pae.usecases.estadisticas.EstadisticasUseCase;
 import co.edu.iem.pae.usecases.plan.PlanRacionUseCase;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -48,6 +50,15 @@ public class PlanRacionController {
     public ResponseEntity<PlanRacionResponse> consultarPlan(@PathVariable Long idPlan) {
         PlanRacion plan = planRacionUseCase.consultarPlan(idPlan);
         return ResponseEntity.ok(PlanRacionResponse.desde(plan));
+    }
+
+    @GetMapping("/fecha/{fecha}")
+    public ResponseEntity<List<PlanRacionResponse>> listarPorFecha(
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        List<PlanRacionResponse> planes = planRacionUseCase.listarPlanesPorFecha(fecha).stream()
+                .map(PlanRacionResponse::desde)
+                .toList();
+        return ResponseEntity.ok(planes);
     }
 
     @GetMapping("/curso/{idCurso}")

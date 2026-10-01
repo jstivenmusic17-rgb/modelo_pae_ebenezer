@@ -7,6 +7,7 @@ import co.edu.iem.pae.infrastructure.driver_adapters.jpa_repository.repository.P
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +44,12 @@ public class PlanRacionGatewayImpl implements PlanRacionGateway {
     @Override
     public List<PlanRacion> listarPorCursoYRangoFechas(Long idCurso, LocalDate desde, LocalDate hasta) {
         return planRacionJpaRepository.findByIdCursoAndFechaBetween(idCurso, desde, hasta).stream().map(this::aDominio).toList();
+    }
+
+    @Override
+    public Optional<PlanRacion> buscarPorCursoYFecha(Long idCurso, LocalDate fecha) {
+        return listarPorCursoYRangoFechas(idCurso, fecha, fecha).stream()
+                .max(Comparator.comparing(PlanRacion::getIdPlan));
     }
 
     private PlanRacionEntity aEntidad(PlanRacion plan) {
