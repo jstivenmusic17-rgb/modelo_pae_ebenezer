@@ -1,9 +1,9 @@
 // ============================================================================
 // Centralizador de peticiones al backend PAE (Spring Boot / Clean Architecture)
-// Base URL: http://localhost:8082/api/pae
+// Base URL: VITE_API_URL (al desplegar) o http://localhost:8082/api/pae
 // ============================================================================
 
-export const API_BASE_URL = "http://localhost:8082/api/pae";
+export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:8082/api/pae";
 
 // ----------------------------------------------------------------------------
 // Error tipado para respuestas no exitosas del backend
@@ -210,10 +210,32 @@ export interface CrearPersonalCocinaRequest {
 }
 
 // ----------------------------------------------------------------------------
+// DTOs — Parámetros del modelo (costos y valores por defecto del pedido)
+// ----------------------------------------------------------------------------
+export interface ParametrosModelo {
+  costoProduccionUnitario: number;
+  costoFaltanteUnitario: number;
+  costoSobranteUnitario: number;
+  coeficienteVariacion: number; // fracción, ej. 0.10
+  margenSeguridadReferencia: number; // fracción, ej. 0.007
+  tasaAsistenciaDefecto: number; // fracción, ej. 0.90
+}
+
+// ----------------------------------------------------------------------------
 // Cliente HTTP genérico — sin try/catch: los fallos se propagan como
 // rechazos de promesa (`.catch`) para que cada vista decida cómo mostrarlos.
 // ----------------------------------------------------------------------------
+// Oyentes que se enteran cuando cualquier petición no logra llegar al
+// servidor (ej. App muestra un único aviso en vez de un error por tarjeta).
+const oyentesSinConexion = new Set<() => void>();
+
+export function alPerderConexion(oyente: () => void): () => void {
+  oyentesSinConexion.add(oyente);
+  return () => oyentesSinConexion.delete(oyente);
+}
+
 function rejectAsConnectionError(): never {
+  oyentesSinConexion.forEach((oyente) => oyente());
   throw new ApiError(0, "No fue posible conectar con el servidor PAE.");
 }
 
@@ -375,6 +397,10 @@ export const PlanRacionApi = {
   listarPorCurso(idCurso: number): Promise<PlanRacion[]> {
     return apiGet<PlanRacion[]>(`/plan/curso/${idCurso}`);
   },
+  // Un plan vigente por curso en la fecha (yyyy-MM-dd)
+  listarPorFecha(fecha: string): Promise<PlanRacion[]> {
+    return apiGet<PlanRacion[]>(`/plan/fecha/${fecha}`);
+  },
   estadisticasPorCurso(idCurso: number): Promise<EstadisticasResumen> {
     return apiGet<EstadisticasResumen>(`/plan/curso/${idCurso}/estadisticas`);
   },
@@ -445,5 +471,17 @@ export const CocinaApi = {
   },
   registrarPersonal(data: CrearPersonalCocinaRequest): Promise<PersonalCocina> {
     return apiPost<PersonalCocina>("/cocina/personal", data);
+  },
+};
+
+// ----------------------------------------------------------------------------
+// Parámetros del modelo
+// ----------------------------------------------------------------------------
+export const ParametrosApi = {
+  obtener(): Promise<ParametrosModelo> {
+    return apiGet<ParametrosModelo>("/parametros");
+  },
+  actualizar(data: ParametrosModelo): Promise<ParametrosModelo> {
+    return apiPut<ParametrosModelo>("/parametros", data);
   },
 };

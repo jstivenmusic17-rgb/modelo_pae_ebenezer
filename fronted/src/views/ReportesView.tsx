@@ -1,24 +1,9 @@
-import { type FormEvent, type JSX, useCallback, useEffect, useMemo, useState } from "react";
+import { type JSX, type ReactNode, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  ChefHat,
-  CheckCircle2,
-  DollarSign,
-  Download,
-  FileText,
-  Loader2,
-  Plus,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  UserPlus,
-} from "lucide-react";
+import { BookOpen, CheckCircle2, Download, Target } from "lucide-react";
 
-import { blurInput, FormField, focusInput, INPUT_CLASS, INPUT_STYLE, SubmitButton } from "../components/FormField.tsx";
-import Modal from "../components/Modal.tsx";
 import {
   ApiError,
-  CocinaApi,
   CursoApi,
   EntregaRacionApi,
   IndicadoresApi,
@@ -27,16 +12,18 @@ import {
   type Curso,
   type EntregaRacion,
   type EstadisticasResumen,
-  type PersonalCocina,
   type PlanRacion,
   type ResumenPeriodo,
-  type Turno,
 } from "../services/api.ts";
 import type { ReporteExportData } from "../services/reporteExport.ts";
+import EmptyState from "../components/EmptyState";
+import { Aviso, Cargando, EncabezadoVista, Tarjeta, TituloSeccion } from "../components/Ui";
+import type { Navegar } from "../components/Navegacion";
+import { cargarParametros } from "../lib/datos";
+import { FORMULAS, fechaISO, formatoCOP } from "../lib/modelo";
 
 const DIA_LABEL = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 const PALETA = ["#1E3A8A", "#3B82F6", "#10B981", "#F97316", "#8B5CF6", "#EC4899", "#0EA5E9", "#EAB308"];
-const COSTO_RACION_DEFECTO = 4350;
 
 const ESTADISTICAS_VACIAS: EstadisticasResumen = {
   totalPlanes: 0,
@@ -89,7 +76,7 @@ function ultimosDiasHabiles(cantidad: number): string[] {
   const cursor = new Date();
   while (fechas.length < cantidad) {
     const dow = cursor.getDay();
-    if (dow !== 0 && dow !== 6) fechas.unshift(cursor.toISOString().slice(0, 10));
+    if (dow !== 0 && dow !== 6) fechas.unshift(fechaISO(cursor));
     cursor.setDate(cursor.getDate() - 1);
   }
   return fechas;
@@ -98,14 +85,14 @@ function ultimosDiasHabiles(cantidad: number): string[] {
 function rangoMesActual(): RangoFechas {
   const hoy = new Date();
   const desde = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  return { desde: desde.toISOString().slice(0, 10), hasta: hoy.toISOString().slice(0, 10) };
+  return { desde: fechaISO(desde), hasta: fechaISO(hoy) };
 }
 
 function rangoMesAnterior(): RangoFechas {
   const hoy = new Date();
   const desde = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
   const hasta = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
-  return { desde: desde.toISOString().slice(0, 10), hasta: hasta.toISOString().slice(0, 10) };
+  return { desde: fechaISO(desde), hasta: fechaISO(hasta) };
 }
 
 function sumarEstadisticas(acc: EstadisticasResumen, e: EstadisticasResumen | null): EstadisticasResumen {
@@ -226,7 +213,7 @@ function cargarTendenciaYSemana(cursos: Curso[]): Promise<TendenciaYSemana> {
           .reduce((s, p) => s + (entregasPorPlan.get(p.idPlan)?.racionesServidas ?? 0), 0);
 
         const planMasReciente = [...todosLosPlanes].sort((a, b) => (a.fecha < b.fecha ? 1 : -1))[0];
-        const costoUnitario = planMasReciente ? planMasReciente.costoProduccionUnitario : COSTO_RACION_DEFECTO;
+        const costoUnitario = planMasReciente ? planMasReciente.costoProduccionUnitario : 0;
 
         // "costoTotal" de EstadisticasResumen es el costo de la desviación
         // (sobrante+faltante), NO el presupuesto ejecutado — para medir
@@ -260,30 +247,6 @@ function cargarReporte(): Promise<ReporteDatos> {
         ...tendenciaYSemana,
       };
     });
-  });
-}
-
-interface TurnoConCapacidad extends Turno {
-  personal: PersonalCocina[];
-  capacidadMaximaRaciones: number;
-}
-
-// Fórmula #19 del modelo analítico (Capacidad Máxima de Preparación):
-// suma de raciones/hora de todo el personal de un turno × horas del turno.
-function cargarCapacidadCocina(): Promise<TurnoConCapacidad[]> {
-  return CocinaApi.listarTurnos().then(function conTurnos(turnos: Turno[]): Promise<TurnoConCapacidad[]> {
-    return Promise.all(
-      turnos.map(function conCapacidadYPersonal(turno: Turno): Promise<TurnoConCapacidad> {
-        return Promise.all([
-          CocinaApi.capacidadMaxima(turno.idTurno)
-            .then((v) => v.valor)
-            .catch((): number => 0),
-          CocinaApi.listarPersonalPorTurno(turno.idTurno).catch((): PersonalCocina[] => []),
-        ]).then(function combinar([capacidadMaximaRaciones, personal]): TurnoConCapacidad {
-          return { ...turno, capacidadMaximaRaciones, personal };
-        });
-      })
-    );
   });
 }
 
@@ -440,43 +403,42 @@ function TrendMiniChart({ data }: TrendMiniChartProps): JSX.Element | null {
   );
 }
 
-export default function ReportesView(): JSX.Element {
-  const [exportLoading, setExportLoading] = useState<"pdf" | "excel" | null>(null);
+function TarjetaKpi({ etiqueta, formula, valor, detalle, children }: {
+  etiqueta: string;
+  formula?: string;
+  valor: string;
+  detalle: string;
+  children?: ReactNode;
+}): JSX.Element {
+  return (
+    <Tarjeta>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "#64748B" }}>{etiqueta}</span>
+        {formula && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: "#EFF6FF", color: "#1E3A8A" }}>
+            {formula}
+          </span>
+        )}
+      </div>
+      <p className="text-3xl font-bold tracking-tight mt-2" style={{ color: "#0F172A" }}>{valor}</p>
+      <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>{detalle}</p>
+      {children}
+    </Tarjeta>
+  );
+}
 
+export default function ReportesView({ navegar }: { navegar: Navegar }): JSX.Element {
+  const [exportLoading, setExportLoading] = useState<"pdf" | "excel" | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [ahorroAcumulado, setAhorroAcumulado] = useState(0);
-  const [estadisticas, setEstadisticas] = useState<EstadisticasResumen | null>(null);
-  const [tendencia, setTendencia] = useState<PuntoTendencia[]>([]);
-  const [racionesSemana, setRacionesSemana] = useState(0);
-  const [donutData, setDonutData] = useState<DonutSlice[]>([]);
-  const [costoUnitario, setCostoUnitario] = useState(COSTO_RACION_DEFECTO);
-  const [costoProduccionTotal, setCostoProduccionTotal] = useState(0);
-  const [precision, setPrecision] = useState<PrecisionPronostico>(PRECISION_VACIA);
-
-  const [turnos, setTurnos] = useState<TurnoConCapacidad[]>([]);
-  const [cargandoCocina, setCargandoCocina] = useState(true);
-  const [errorCocina, setErrorCocina] = useState<string | null>(null);
-  const [mostrarNuevoTurno, setMostrarNuevoTurno] = useState(false);
-  const [registrandoTurno, setRegistrandoTurno] = useState(false);
-  const [turnoParaPersonal, setTurnoParaPersonal] = useState<number | null>(null);
-  const [registrandoPersonalDe, setRegistrandoPersonalDe] = useState<number | null>(null);
-  const [errorFormularioCocina, setErrorFormularioCocina] = useState<string | null>(null);
+  const [datos, setDatos] = useState<ReporteDatos | null>(null);
+  const [costoParametro, setCostoParametro] = useState(0);
 
   useEffect(function cargarAlMontar() {
-    setCargando(true);
-    setError(null);
-    cargarReporte()
-      .then(function aplicarDatos(datos: ReporteDatos): void {
-        setAhorroAcumulado(datos.ahorroAcumulado);
-        setEstadisticas(datos.estadisticas);
-        setDonutData(datos.donutData);
-        setTendencia(datos.tendencia);
-        setRacionesSemana(datos.racionesSemana);
-        setCostoUnitario(datos.costoUnitario);
-        setCostoProduccionTotal(datos.costoProduccionTotal);
-        setPrecision(datos.precision);
+    Promise.all([cargarReporte(), cargarParametros()])
+      .then(function aplicarDatos([reporte, parametros]): void {
+        setDatos(reporte);
+        setCostoParametro(parametros.costoProduccionUnitario);
       })
       .catch(function manejarError(err: unknown): void {
         setError(err instanceof ApiError ? err.message : "No fue posible cargar los reportes.");
@@ -486,56 +448,38 @@ export default function ReportesView(): JSX.Element {
       });
   }, []);
 
-  // Independiente del resto del reporte: la capacidad de cocina no depende
-  // de los cursos, así que se carga y refresca por separado.
-  const cargarTurnos = useCallback(function cargarTurnosImpl(): Promise<void> {
-    setCargandoCocina(true);
-    setErrorCocina(null);
-    return cargarCapacidadCocina()
-      .then(setTurnos)
-      .catch(function manejarErrorDeCocina(err: unknown): void {
-        setErrorCocina(err instanceof ApiError ? err.message : "No fue posible cargar la capacidad de cocina.");
-      })
-      .finally(function detenerCargaDeCocina(): void {
-        setCargandoCocina(false);
-      });
-  }, []);
-
-  useEffect(
-    function cargarCocinaAlMontar() {
-      cargarTurnos();
-    },
-    [cargarTurnos]
-  );
+  const estadisticas = datos?.estadisticas ?? ESTADISTICAS_VACIAS;
+  const costoUnitario = datos && datos.costoUnitario > 0 ? datos.costoUnitario : costoParametro;
+  const precision = datos?.precision ?? PRECISION_VACIA;
 
   const eficienciaPresupuestal = useMemo(
     function calcularEficienciaPresupuestal(): number {
-      if (!estadisticas || costoProduccionTotal <= 0) return 0;
+      if (!datos || datos.costoProduccionTotal <= 0) return 0;
       const desviacion = estadisticas.costoTotalSobrante + estadisticas.costoTotalFaltante;
-      return Math.max(0, 100 - (desviacion / costoProduccionTotal) * 100);
+      return Math.max(0, 100 - (desviacion / datos.costoProduccionTotal) * 100);
     },
-    [estadisticas, costoProduccionTotal]
+    [datos, estadisticas]
   );
 
-  const totalRaciones = estadisticas?.totalRacionesServidas ?? 0;
-  const desperdicioTotal = estadisticas?.totalRacionesSobrantes ?? 0;
-  const eficienciaEntrega =
-    estadisticas && estadisticas.totalRacionesPlanificadas > 0
-      ? Math.max(0, 100 - (desperdicioTotal / estadisticas.totalRacionesPlanificadas) * 100)
-      : 0;
+  const totalRaciones = estadisticas.totalRacionesServidas;
+  const desperdicioTotal = estadisticas.totalRacionesSobrantes;
+  const tasaDesperdicio =
+    estadisticas.totalRacionesPlanificadas > 0 ? (desperdicioTotal / estadisticas.totalRacionesPlanificadas) * 100 : 0;
+  const eficienciaEntrega = estadisticas.totalRacionesPlanificadas > 0 ? Math.max(0, 100 - tasaDesperdicio) : 0;
+  const sinDatos = estadisticas.totalPlanes === 0;
 
   function buildExportData(): ReporteExportData {
     return {
       generadoEn: new Date(),
-      ahorroAcumulado,
+      ahorroAcumulado: datos?.ahorroAcumulado ?? 0,
       eficienciaPresupuestal,
-      racionesSemana,
+      racionesSemana: datos?.racionesSemana ?? 0,
       totalRaciones,
       desperdicioTotal,
       eficienciaEntrega,
       costoUnitario,
-      donutData,
-      tendencia,
+      donutData: datos?.donutData ?? [],
+      tendencia: datos?.tendencia ?? [],
       errorAbsolutoMedio: precision.errorAbsolutoMedio,
       diasConDatosPronostico: precision.diasConDatos,
     };
@@ -543,15 +487,11 @@ export default function ReportesView(): JSX.Element {
 
   function handleExport(type: "pdf" | "excel"): void {
     setExportLoading(type);
-    const datos = buildExportData();
-
+    const exportData = buildExportData();
     import("../services/reporteExport.ts")
       .then(function generarArchivo(modulo): void {
-        if (type === "excel") {
-          modulo.exportarReporteExcel(datos);
-        } else {
-          modulo.exportarReportePdf(datos);
-        }
+        if (type === "excel") modulo.exportarReporteExcel(exportData);
+        else modulo.exportarReportePdf(exportData);
       })
       .catch(function manejarErrorDeExportacion(): void {
         setError("No fue posible generar el archivo de exportación.");
@@ -561,451 +501,142 @@ export default function ReportesView(): JSX.Element {
       });
   }
 
-  function abrirNuevoTurno(): void {
-    setErrorFormularioCocina(null);
-    setMostrarNuevoTurno(true);
-  }
-
-  function abrirRegistrarPersonal(idTurno: number): void {
-    setErrorFormularioCocina(null);
-    setTurnoParaPersonal(idTurno);
-  }
-
-  function handleSubmitTurno(e: FormEvent<HTMLFormElement>): void {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const nombreTurno = String(formData.get("nombreTurno") ?? "").trim();
-    const horasDuracion = Number(formData.get("horasDuracion"));
-
-    if (!nombreTurno || !Number.isFinite(horasDuracion) || horasDuracion <= 0) {
-      setErrorFormularioCocina("Ingresa un nombre y unas horas de duración mayores a 0.");
-      return;
-    }
-
-    setRegistrandoTurno(true);
-    setErrorFormularioCocina(null);
-    CocinaApi.crearTurno({ nombreTurno, horasDuracion })
-      .then(function alCrear(): Promise<void> {
-        setMostrarNuevoTurno(false);
-        return cargarTurnos();
-      })
-      .catch(function manejarErrorDeTurno(): void {
-        setErrorFormularioCocina("No fue posible registrar el turno.");
-      })
-      .finally(function detenerRegistroDeTurno(): void {
-        setRegistrandoTurno(false);
-      });
-  }
-
-  function handleSubmitPersonal(e: FormEvent<HTMLFormElement>): void {
-    e.preventDefault();
-    if (turnoParaPersonal === null) return;
-
-    const formData = new FormData(e.currentTarget);
-    const nombreCompleto = String(formData.get("nombreCompleto") ?? "").trim();
-    const racionesPorHoraCapacidad = Number(formData.get("racionesPorHoraCapacidad"));
-
-    if (!nombreCompleto || !Number.isFinite(racionesPorHoraCapacidad) || racionesPorHoraCapacidad <= 0) {
-      setErrorFormularioCocina("Ingresa un nombre y una capacidad mayor a 0 raciones/hora.");
-      return;
-    }
-
-    const idTurno = turnoParaPersonal;
-    setRegistrandoPersonalDe(idTurno);
-    setErrorFormularioCocina(null);
-    CocinaApi.registrarPersonal({ nombreCompleto, racionesPorHoraCapacidad, idTurno })
-      .then(function alRegistrar(): Promise<void> {
-        setTurnoParaPersonal(null);
-        return cargarTurnos();
-      })
-      .catch(function manejarErrorDePersonal(): void {
-        setErrorFormularioCocina("No fue posible registrar al personal de cocina.");
-      })
-      .finally(function detenerRegistroDePersonal(): void {
-        setRegistrandoPersonalDe(null);
-      });
-  }
+  const botonExportar = (tipo: "excel" | "pdf", etiqueta: string) => (
+    <button
+      onClick={() => handleExport(tipo)}
+      disabled={exportLoading !== null || cargando || sinDatos}
+      className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+      style={
+        tipo === "pdf"
+          ? { background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)", color: "#FFFFFF" }
+          : { backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0", color: "#0F172A" }
+      }
+    >
+      {exportLoading === tipo ? <CheckCircle2 className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+      {exportLoading === tipo ? "Generando..." : etiqueta}
+    </button>
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-6"
-    >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "#0F172A" }}>
-            <FileText className="w-5 h-5" style={{ color: "#1E3A8A" }} />
-            Reportes y KPIs
-          </h2>
-          <p className="text-sm mt-0.5" style={{ color: "#94A3B8" }}>
-            Análisis de eficiencia presupuestal y distribución de consumos
-          </p>
-        </div>
-
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-6">
+      <EncabezadoVista
+        titulo="Reportes e indicadores"
+        descripcion="Compara lo planificado con lo que realmente se sirvió. Cada indicador lleva el número de su fórmula en el documento del modelo (F1–F20)."
+      >
         <div className="flex gap-2">
-          <button
-            onClick={() => handleExport("excel")}
-            disabled={exportLoading !== null || cargando}
-            className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all duration-200 hover:shadow-sm active:scale-95"
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0", color: "#0F172A" }}
-          >
-            {exportLoading === "excel" ? (
-              <CheckCircle2 className="w-4 h-4" style={{ color: "#10B981" }} />
-            ) : (
-              <Download className="w-4 h-4" style={{ color: "#64748B" }} />
-            )}
-            {exportLoading === "excel" ? "Generando..." : "Excel"}
-          </button>
-          <button
-            onClick={() => handleExport("pdf")}
-            disabled={exportLoading !== null || cargando}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-2 transition-all duration-200 active:scale-95"
-            style={{
-              background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)",
-              boxShadow: "0 4px 14px rgba(30,58,138,0.3)",
-            }}
-          >
-            {exportLoading === "pdf" ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-            {exportLoading === "pdf" ? "Generando..." : "PDF Report"}
-          </button>
+          {botonExportar("excel", "Excel")}
+          {botonExportar("pdf", "Informe PDF")}
         </div>
-      </div>
+      </EncabezadoVista>
 
-      {error && (
-        <div
-          className="px-4 py-3 rounded-xl text-xs font-semibold"
-          style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C" }}
-        >
-          {error}
-        </div>
-      )}
+      {error && <Aviso tono="error">{error}</Aviso>}
 
       {cargando ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm" style={{ color: "#94A3B8" }}>
-          <Loader2 className="w-4 h-4 animate-spin" />
-          Cargando reportes...
-        </div>
+        <Cargando texto="Cargando reportes..." />
+      ) : sinDatos ? (
+        <EmptyState
+          titulo="Aún no hay datos para reportar"
+          mensaje="Los indicadores aparecen cuando hay planes calculados y raciones registradas en el comedor."
+          accion={{ etiqueta: "Ir a Plan del día", onClick: () => navegar("plan") }}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="flex flex-col gap-4">
-            <div className="p-5 rounded-2xl" style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#94A3B8" }}>
-                  Ahorro Acumulado (Mes)
-                </span>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#ECFDF5" }}>
-                  <DollarSign className="w-4 h-4" style={{ color: "#10B981" }} />
-                </div>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-4xl font-bold tracking-tight" style={{ color: "#0F172A" }}>
-                  $ {Math.round(ahorroAcumulado).toLocaleString("es-CO")}
-                </h3>
-                <span
-                  className="flex items-center text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={
-                    ahorroAcumulado >= 0
-                      ? { backgroundColor: "#ECFDF5", color: "#059669" }
-                      : { backgroundColor: "#FFF7ED", color: "#EA580C" }
-                  }
-                >
-                  {ahorroAcumulado >= 0 ? (
-                    <TrendingDown className="w-3 h-3 mr-0.5" />
-                  ) : (
-                    <TrendingUp className="w-3 h-3 mr-0.5" />
-                  )}
-                  vs. mes anterior
-                </span>
-              </div>
-              <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>
-                Optimización de insumos vs. presupuesto
-              </p>
-            </div>
-
-            <div className="p-5 rounded-2xl" style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#94A3B8" }}>
-                  Eficiencia Presupuestal
-                </span>
-              </div>
-              <h3 className="text-4xl font-bold tracking-tight mb-3" style={{ color: "#0F172A" }}>
-                {eficienciaPresupuestal.toFixed(1)}%
-              </h3>
-              <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: "#E2E8F0" }}>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${eficienciaPresupuestal}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className="h-full rounded-full"
-                  style={{ background: "linear-gradient(90deg, #1E3A8A, #3B82F6)" }}
-                />
-              </div>
-              <p className="text-xs mt-2" style={{ color: "#94A3B8" }}>Tendencia últimos días hábiles</p>
-              <div className="mt-3">
-                <TrendMiniChart data={tendencia} />
-              </div>
-            </div>
-
-            <div className="p-5 rounded-2xl" style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#94A3B8" }}>
-                Raciones Servidas (Semana)
-              </span>
-              <div className="flex items-baseline gap-2 mt-2">
-                <h3 className="text-4xl font-bold tracking-tight" style={{ color: "#0F172A" }}>
-                  {racionesSemana.toLocaleString("es-CO")}
-                </h3>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold"
-                  style={{ backgroundColor: "#ECFDF5", color: "#059669" }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "#10B981" }} />
-                  Últimos {tendencia.length || 6} días hábiles
-                </span>
-              </div>
-            </div>
-
-            <div className="p-5 rounded-2xl" style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#94A3B8" }}>
-                  Precisión del Pronóstico (MAE)
-                </span>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#EFF6FF" }}>
-                  <Target className="w-4 h-4" style={{ color: "#3B82F6" }} />
-                </div>
-              </div>
-              {precision.diasConDatos > 0 ? (
-                <>
-                  <h3 className="text-4xl font-bold tracking-tight" style={{ color: "#0F172A" }}>
-                    {precision.errorAbsolutoMedio.toFixed(1)}
-                  </h3>
-                  <p className="text-xs mt-1" style={{ color: "#94A3B8" }}>
-                    raciones de error promedio/día · {precision.diasConDatos} días con datos este mes
-                  </p>
-                  <div
-                    className="mt-3 rounded-lg px-3 py-2 flex justify-between items-center"
-                    style={{ backgroundColor: "#F8FAFC" }}
-                  >
-                    <span className="text-xs font-medium" style={{ color: "#475569" }}>Costo real / ración</span>
-                    <span className="text-sm font-bold" style={{ color: "#0F172A" }}>
-                      ${Math.round(precision.costoPromedioPorRacion).toLocaleString("es-CO")}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs mt-2" style={{ color: "#94A3B8" }}>
-                  Aún no hay entregas registradas este mes para calcular el error del pronóstico.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div
-            className="col-span-1 md:col-span-2 rounded-2xl p-6 flex flex-col"
-            style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}
-          >
-            <div className="mb-6">
-              <h3 className="text-sm font-bold" style={{ color: "#0F172A" }}>
-                Distribución de Raciones Servidas por Curso
-              </h3>
-              <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>
-                Pase el cursor sobre cada segmento para ver detalles
-              </p>
-            </div>
-            <div className="flex-1 flex items-center">
-              <DonutChart data={donutData} total={totalRaciones} totalLabel="Total raciones" />
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 pt-5" style={{ borderTop: "1px solid #F1F5F9" }}>
-              {[
-                { label: "Total Raciones", value: totalRaciones.toLocaleString("es-CO"), color: "#1E3A8A" },
-                { label: "Desperdicio", value: `${desperdicioTotal.toLocaleString("es-CO")} rac.`, color: "#F97316" },
-                { label: "Eficiencia", value: `${eficienciaEntrega.toFixed(1)}%`, color: "#10B981" },
-                { label: "Costo Unitario", value: `$${Math.round(costoUnitario).toLocaleString("es-CO")}`, color: "#8B5CF6" },
-              ].map((s) => (
-                <div key={s.label} className="text-center">
-                  <p className="text-xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</p>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: "#94A3B8" }}>{s.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Fórmula #19: capacidad máxima de preparación por turno de cocina */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ backgroundColor: "#FFFFFF", border: "1px solid #E2E8F0" }}
-      >
-        <div className="px-6 py-4 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid #F1F5F9" }}>
-          <div>
-            <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: "#0F172A" }}>
-              <ChefHat className="w-4 h-4" style={{ color: "#1E3A8A" }} />
-              Capacidad Operativa de Cocina
-            </h3>
-            <p className="text-xs mt-0.5" style={{ color: "#94A3B8" }}>
-              Personal × raciones/hora × horas de turno — límite máximo de preparación
-            </p>
-          </div>
-          <button
-            onClick={abrirNuevoTurno}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all duration-200 hover:shadow-sm active:scale-95 flex-shrink-0"
-            style={{ backgroundColor: "#EFF6FF", color: "#1E3A8A" }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Nuevo turno
-          </button>
-        </div>
-
-        <div className="p-5">
-          {errorCocina && (
-            <div
-              className="mb-4 px-4 py-3 rounded-xl text-xs font-semibold"
-              style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C" }}
-            >
-              {errorCocina}
-            </div>
-          )}
-
-          {cargandoCocina ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: "#94A3B8" }}>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Cargando turnos de cocina...
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {turnos.map((turno) => (
-                <div
-                  key={turno.idTurno}
-                  className="p-4 rounded-xl flex flex-col gap-3"
-                  style={{ backgroundColor: "#F8FAFC", border: "1px solid #F1F5F9" }}
-                >
-                  <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <p className="font-bold text-sm" style={{ color: "#0F172A" }}>{turno.nombreTurno}</p>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: "#94A3B8" }}>
-                        {turno.horasDuracion}h de turno · {turno.personal.length} en cocina
-                      </p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-2xl font-bold tracking-tight" style={{ color: "#1E3A8A" }}>
-                        {Math.round(turno.capacidadMaximaRaciones)}
-                      </p>
-                      <p className="text-[10px] font-semibold" style={{ color: "#94A3B8" }}>raciones máx.</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => abrirRegistrarPersonal(turno.idTurno)}
-                    className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
-                    style={{ backgroundColor: "#FFFFFF", color: "#1E3A8A", border: "1px solid #E2E8F0" }}
-                  >
-                    <UserPlus className="w-3 h-3" />
-                    Registrar personal
-                  </button>
-                </div>
-              ))}
-              {turnos.length === 0 && (
-                <div className="col-span-1 md:col-span-2 py-8 text-center text-sm" style={{ color: "#94A3B8" }}>
-                  No hay turnos de cocina registrados. Usa "Nuevo turno" para calcular su capacidad máxima.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {mostrarNuevoTurno && (
-        <Modal
-          title="Nuevo Turno de Cocina"
-          description="Define un turno para calcular su capacidad máxima de preparación."
-          onClose={() => setMostrarNuevoTurno(false)}
-        >
-          <form onSubmit={handleSubmitTurno} className="flex flex-col gap-4">
-            <FormField label="Nombre del turno">
-              <input
-                name="nombreTurno"
-                required
-                autoFocus
-                placeholder="Ej. Mañana, Tarde"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-                onFocus={focusInput}
-                onBlur={blurInput}
-              />
-            </FormField>
-            <FormField label="Horas de duración">
-              <input
-                name="horasDuracion"
-                type="number"
-                min="0.5"
-                step="0.5"
-                required
-                defaultValue={5}
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-                onFocus={focusInput}
-                onBlur={blurInput}
-              />
-            </FormField>
-            {errorFormularioCocina && (
-              <p className="text-xs font-semibold" style={{ color: "#B91C1C" }}>{errorFormularioCocina}</p>
-            )}
-            <SubmitButton submitting={registrandoTurno} submittingLabel="Creando..." label="Crear Turno" />
-          </form>
-        </Modal>
-      )}
-
-      {turnoParaPersonal !== null && (
-        <Modal
-          title="Registrar Personal de Cocina"
-          description="Su capacidad en raciones/hora se suma al límite máximo del turno."
-          onClose={() => setTurnoParaPersonal(null)}
-        >
-          <form onSubmit={handleSubmitPersonal} className="flex flex-col gap-4">
-            <FormField label="Nombre completo">
-              <input
-                name="nombreCompleto"
-                required
-                autoFocus
-                placeholder="Ej. Ana Torres"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-                onFocus={focusInput}
-                onBlur={blurInput}
-              />
-            </FormField>
-            <FormField label="Raciones que prepara por hora">
-              <input
-                name="racionesPorHoraCapacidad"
-                type="number"
-                min="1"
-                step="1"
-                required
-                defaultValue={50}
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-                onFocus={focusInput}
-                onBlur={blurInput}
-              />
-            </FormField>
-            {errorFormularioCocina && (
-              <p className="text-xs font-semibold" style={{ color: "#B91C1C" }}>{errorFormularioCocina}</p>
-            )}
-            <SubmitButton
-              submitting={registrandoPersonalDe === turnoParaPersonal}
-              submittingLabel="Registrando..."
-              label="Registrar Personal"
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <TarjetaKpi
+              etiqueta="Ahorro vs. mes anterior"
+              formula="F20"
+              valor={formatoCOP(datos?.ahorroAcumulado ?? 0)}
+              detalle={(datos?.ahorroAcumulado ?? 0) >= 0 ? "ahorro por tener menos sobrantes que el mes pasado" : "este mes hubo más sobrantes que el mes pasado (o el mes pasado no tiene datos)"}
             />
-          </form>
-        </Modal>
+            <TarjetaKpi
+              etiqueta="Error del pronóstico"
+              formula="F16"
+              valor={precision.diasConDatos > 0 ? precision.errorAbsolutoMedio.toFixed(1) : "—"}
+              detalle={precision.diasConDatos > 0 ? `raciones de diferencia promedio por curso y día (${precision.diasConDatos} registros este mes)` : "sin comedor registrado este mes"}
+            />
+            <TarjetaKpi
+              etiqueta="Costo real por ración"
+              formula="F13"
+              valor={precision.diasConDatos > 0 ? formatoCOP(precision.costoPromedioPorRacion) : "—"}
+              detalle={`costo de producción configurado: ${formatoCOP(costoUnitario)}`}
+            />
+            <TarjetaKpi etiqueta="Tasa de desperdicio" formula="F3" valor={`${tasaDesperdicio.toFixed(1)}%`} detalle={`${desperdicioTotal.toLocaleString("es-CO")} raciones sobrantes en total`} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="flex flex-col gap-4">
+              <TarjetaKpi
+                etiqueta="Eficiencia presupuestal"
+                formula="F8÷F5"
+                valor={`${eficienciaPresupuestal.toFixed(1)}%`}
+                detalle="100% − (costo de desviación ÷ costo de producción)"
+              >
+                <div className="h-2 w-full rounded-full overflow-hidden mt-3" style={{ backgroundColor: "#E2E8F0" }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${eficienciaPresupuestal}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className="h-full rounded-full"
+                    style={{ background: "linear-gradient(90deg, #1E3A8A, #3B82F6)" }}
+                  />
+                </div>
+                <p className="text-[11px] mt-3" style={{ color: "#94A3B8" }}>Tendencia de los últimos días hábiles</p>
+                <div className="mt-2">
+                  <TrendMiniChart data={datos?.tendencia ?? []} />
+                </div>
+              </TarjetaKpi>
+              <TarjetaKpi
+                etiqueta="Raciones servidas (semana)"
+                formula="F15"
+                valor={(datos?.racionesSemana ?? 0).toLocaleString("es-CO")}
+                detalle={`costo de producción de la semana: ${formatoCOP(datos?.costoProduccionTotal ?? 0)}`}
+              />
+            </div>
+
+            <Tarjeta className="md:col-span-2 flex flex-col">
+              <TituloSeccion titulo="Raciones servidas por curso" ayuda="Pasa el cursor sobre cada segmento para ver el detalle." />
+              <div className="flex-1 flex items-center">
+                <DonutChart data={datos?.donutData ?? []} total={totalRaciones} totalLabel="Total raciones" />
+              </div>
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 pt-5" style={{ borderTop: "1px solid #F1F5F9" }}>
+                {[
+                  { label: "Servidas", value: totalRaciones.toLocaleString("es-CO"), color: "#1E3A8A" },
+                  { label: "Sobrantes (F6)", value: desperdicioTotal.toLocaleString("es-CO"), color: "#F97316" },
+                  { label: "Faltantes (F7)", value: estadisticas.totalRacionesFaltantes.toLocaleString("es-CO"), color: "#DC2626" },
+                  { label: "Rendimiento (F17)", value: `${eficienciaEntrega.toFixed(1)}%`, color: "#10B981" },
+                ].map((s) => (
+                  <div key={s.label} className="text-center">
+                    <p className="text-xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: "#94A3B8" }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </Tarjeta>
+          </div>
+        </>
       )}
+
+      {/* Catálogo: las fórmulas del documento y cómo se calculan */}
+      <Tarjeta>
+        <TituloSeccion
+          titulo="Las 20 fórmulas del modelo"
+          ayuda="Referencia rápida de los indicadores del documento Modelo Analítico PAE."
+          accion={<BookOpen className="w-4 h-4" style={{ color: "#1E3A8A" }} />}
+        />
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {Object.values(FORMULAS).map((f) => (
+            <div key={f.codigo} className="rounded-lg px-3 py-2" style={{ backgroundColor: "#F8FAFC" }}>
+              <p className="text-xs font-bold" style={{ color: "#0F172A" }}>
+                <span style={{ color: "#1E3A8A" }}>{f.codigo}</span> · {f.nombre}
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "#64748B" }}>{f.descripcion}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] mt-3 flex items-center gap-1.5" style={{ color: "#94A3B8" }}>
+          <Target className="w-3.5 h-3.5" /> El pedido diario usa F1 con el modelo del vendedor de periódicos; F2 se muestra solo como comparación.
+        </p>
+      </Tarjeta>
     </motion.div>
   );
 }
