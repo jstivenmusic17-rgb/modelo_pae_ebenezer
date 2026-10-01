@@ -12,6 +12,8 @@ import {
   SubmitButton,
 } from "../components/FormField.tsx";
 import Modal from "../components/Modal.tsx";
+import { Aviso } from "../components/Ui";
+import { hoyISO } from "../lib/modelo";
 import { ApiError, InsumoApi, type Insumo, type MovimientoInsumo, type ValorCalculado } from "../services/api.ts";
 
 // El backend no expone categoría ni ícono por insumo: se infieren a partir
@@ -337,6 +339,22 @@ export default function InventarioView(): JSX.Element {
         </div>
       </div>
 
+      {/* Qué pedir: insumos en o por debajo de su punto de reorden (F12) */}
+      {insumos.some(estaBajoDeStock) && (
+        <Aviso tono="alerta">
+          <p className="font-bold">Hay que hacer pedido al proveedor:</p>
+          <ul className="mt-1 list-disc pl-4">
+            {insumos.filter(estaBajoDeStock).map((i) => (
+              <li key={i.idInsumo}>
+                {i.nombreInsumo}: quedan {i.stockActual.toLocaleString("es-CO", { maximumFractionDigits: 1 })} {i.unidadMedida} y
+                el punto de reorden es {i.puntoReordenKg.toLocaleString("es-CO", { maximumFractionDigits: 1 })} {i.unidadMedida} (F12 =
+                consumo diario × {i.diasEntregaProveedor} días del proveedor + reserva).
+              </li>
+            ))}
+          </ul>
+        </Aviso>
+      )}
+
       {error && (
         <div
           className="px-4 py-3 rounded-xl text-xs font-semibold"
@@ -659,7 +677,7 @@ export default function InventarioView(): JSX.Element {
                 name="fecha"
                 type="date"
                 required
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={hoyISO()}
                 className={INPUT_CLASS}
                 style={INPUT_STYLE}
                 onFocus={focusInput}

@@ -1,3 +1,4 @@
+import { fechaISO } from "../lib/modelo";
 // ============================================================================
 // Exportación de Reportes y KPIs a Excel y PDF.
 // El backend no expone un endpoint de exportación, así que el archivo se
@@ -63,7 +64,7 @@ function finalYDeUltimaTabla(doc: jsPDF): number {
 }
 
 function nombreArchivo(fecha: Date, extension: string): string {
-  const iso = fecha.toISOString().slice(0, 10);
+  const iso = fechaISO(fecha);
   return `reporte-pae-${iso}.${extension}`;
 }
 

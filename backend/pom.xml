@@ -49,6 +49,14 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Base en memoria SOLO para el perfil demo
+             (mvn spring-boot:run -Dspring-boot.run.profiles=demo) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Documentacion interactiva de la API (Swagger UI) -->
         <dependency>
             <groupId>org.springdoc</groupId>

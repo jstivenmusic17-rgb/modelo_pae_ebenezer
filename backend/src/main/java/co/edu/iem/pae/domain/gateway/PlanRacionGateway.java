@@ -16,4 +16,7 @@ public interface PlanRacionGateway {
     List<PlanRacion> listarPorFecha(LocalDate fecha);
 
     List<PlanRacion> listarPorCursoYRangoFechas(Long idCurso, LocalDate desde, LocalDate hasta);
+
+    // Plan vigente (el de mayor id) de un curso en una fecha
+    Optional<PlanRacion> buscarPorCursoYFecha(Long idCurso, LocalDate fecha);
 }

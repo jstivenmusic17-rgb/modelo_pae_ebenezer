@@ -6,6 +6,7 @@ import co.edu.iem.pae.domain.gateway.EstudianteGateway;
 import co.edu.iem.pae.domain.gateway.InsumoGateway;
 import co.edu.iem.pae.domain.gateway.JornadaGateway;
 import co.edu.iem.pae.domain.gateway.MovimientoInsumoGateway;
+import co.edu.iem.pae.domain.gateway.ParametrosModeloGateway;
 import co.edu.iem.pae.domain.gateway.PersonalCocinaGateway;
 import co.edu.iem.pae.domain.gateway.PlanRacionGateway;
 import co.edu.iem.pae.domain.gateway.TurnoGateway;
@@ -17,6 +18,7 @@ import co.edu.iem.pae.usecases.estudiante.EstudianteUseCase;
 import co.edu.iem.pae.usecases.insumo.InsumoUseCase;
 import co.edu.iem.pae.usecases.insumo.MovimientoInsumoUseCase;
 import co.edu.iem.pae.usecases.jornada.JornadaUseCase;
+import co.edu.iem.pae.usecases.parametros.ParametrosModeloUseCase;
 import co.edu.iem.pae.usecases.plan.PlanRacionUseCase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,8 +28,9 @@ public class UseCasesConfig {
     @Bean
     public PlanRacionUseCase planRacionUseCase(CursoGateway cursoGateway,
                                                 EstudianteGateway estudianteGateway,
-                                                PlanRacionGateway planRacionGateway) {
-        return new PlanRacionUseCase(cursoGateway, estudianteGateway, planRacionGateway);
+                                                PlanRacionGateway planRacionGateway,
+                                                EntregaRacionGateway entregaRacionGateway) {
+        return new PlanRacionUseCase(cursoGateway, estudianteGateway, planRacionGateway, entregaRacionGateway);
     }
 
     @Bean
@@ -76,5 +79,10 @@ public class UseCasesConfig {
     @Bean
     public CocinaUseCase cocinaUseCase(TurnoGateway turnoGateway, PersonalCocinaGateway personalCocinaGateway) {
         return new CocinaUseCase(turnoGateway, personalCocinaGateway);
+    }
+
+    @Bean
+    public ParametrosModeloUseCase parametrosModeloUseCase(ParametrosModeloGateway parametrosModeloGateway) {
+        return new ParametrosModeloUseCase(parametrosModeloGateway);
     }
 }

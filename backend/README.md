@@ -91,17 +91,47 @@ src/main/resources/
 
 ## Cómo correrlo
 
+Requisitos: **JDK 17 o superior** (con Java 8 no compila) y Maven.
+
+### Con PostgreSQL (uso normal)
+
 1. Crear la base de datos en PostgreSQL:
    ```sql
    CREATE DATABASE pae_db;
    ```
-2. Ajustar usuario/clave en `src/main/resources/application.properties` si es necesario.
+2. Copiar `application.properties.example` a `application.properties` y poner
+   la contraseña **real** del usuario `postgres` de tu instalación. Si no
+   coincide, la app se detiene con `la autentificación password falló`. Para
+   cambiarla desde pgAdmin: `ALTER USER postgres PASSWORD 'tu_clave';`
 3. Ejecutar:
    ```bash
    mvn spring-boot:run
    ```
    Al arrancar, Hibernate crea automáticamente el esquema `pae` y sus tablas
    (`ddl-auto=update`). El servidor queda escuchando en `http://localhost:8082`.
+
+### Modo demo (sin PostgreSQL)
+
+Usa una base en memoria con los datos de ejemplo del documento (455
+estudiantes, 3 insumos, cocina de 750 raciones y la semana simulada de la
+Tabla 1). Los datos se borran al detener la aplicación.
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=demo
+```
+
+En IntelliJ: *Run configuration → Active profiles → `demo`*. Para quitar el
+modo demo del proyecto basta con borrar la dependencia `h2` del `pom.xml`,
+`application-demo.properties` y `infrastructure/config/DemoDataSeeder.java`.
+
+### Pruebas
+
+```bash
+mvn test
+```
+
+Verifican que el motor reproduce los ejemplos del documento (F1, F2, F3, F10,
+F12, F19), los parámetros del modelo y el recálculo del plan sin duplicados.
 
 ## Documentación interactiva
 
@@ -129,7 +159,10 @@ Desde ahí se puede probar cada endpoint sin necesidad de un cliente externo.
 | Cocina | POST | `/api/pae/cocina/turno` | Crea un turno de cocina |
 | Cocina | POST | `/api/pae/cocina/personal` | Asigna personal a un turno |
 | Cocina | GET | `/api/pae/cocina/turno/{idTurno}/capacidad-maxima` | Capacidad máxima de preparación del turno |
-| Planificación | POST | `/api/pae/plan/calcular` | Calcula y guarda el plan de raciones óptimo para un curso/fecha |
+| Parámetros | GET | `/api/pae/parametros` | Costos y valores por defecto del modelo de pedido |
+| Parámetros | PUT | `/api/pae/parametros` | Actualiza los parámetros del modelo |
+| Planificación | POST | `/api/pae/plan/calcular` | Calcula y guarda el plan de un curso/fecha (recalcular reemplaza el plan del día) |
+| Planificación | GET | `/api/pae/plan/fecha/{fecha}` | Plan vigente de cada curso en una fecha (yyyy-MM-dd) |
 | Planificación | GET | `/api/pae/plan/curso/{idCurso}` | Lista los planes de un curso |
 | Planificación | GET | `/api/pae/plan/curso/{idCurso}/estadisticas` | Estadísticas agregadas de un curso |
 | Entregas | POST | `/api/pae/entrega/registrar` | Registra el consumo real de un plan |
@@ -147,6 +180,18 @@ como parámetro.
 
 ## Frontend
 
-El repositorio del panel de control (React + TypeScript + Tailwind) es un
-proyecto aparte que consume esta API. Con el backend corriendo, basta con
-apuntar el frontend a `http://localhost:8082/api/pae`.
+El panel (React + TypeScript + Tailwind) está en la carpeta `fronted`:
+
+```bash
+cd fronted
+npm install
+npm run dev      # abre http://localhost:8443
+```
+
+Por defecto consume `http://localhost:8082/api/pae`. Para apuntarlo a otro
+servidor (por ejemplo al desplegar), definir la variable `VITE_API_URL`.
+
+La navegación sigue el ciclo diario del PAE: **Inicio** (resumen y primeros
+pasos) → **Plan del día** (cuántas raciones pedir y por qué) → **Comedor**
+(raciones servidas) → **Inventario** → **Reportes** (indicadores F1–F20), más
+**Configuración** (jornadas, cursos, estudiantes, cocina y parámetros).
